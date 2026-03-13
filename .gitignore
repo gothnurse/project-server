@@ -1,0 +1,12 @@
+# Secrets
+.env
+
+# Service data directories
+pihole/
+wireguard/
+minecraft/
+portainer/
+
+# Misc
+*.log
+.DS_Store
