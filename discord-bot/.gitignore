@@ -1,0 +1,17 @@
+# Zmienne środowiskowe — NIGDY nie commitować
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Docker
+*.log
+
+# System
+.DS_Store
+Thumbs.db
