@@ -6,7 +6,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from mplfinance.original_flavor import candlestick_ohlc
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time as dtime
 from dotenv import load_dotenv
 import discord
 from discord import app_commands
@@ -289,12 +289,12 @@ def get_help_embed(admin: bool) -> discord.Embed:
     embed = discord.Embed(title="🌑 Polecenia Aku", color=0x5865F2)
     # Commands available to everyone
     embed.add_field(name="/rps",            value="Zagraj w kamień, papier, nożyczki przeciwko Aku", inline=False)
-    embed.add_field(name="/akcje <ticker>", value="Sprawdź cenę akcji w USD i EUR ze zmianą 24h + wykres\nNp. `/akcje AAPL`", inline=False)
-    embed.add_field(name="/sprawdz",        value="Ręcznie sprawdź czy jest aktywny stream lub nowe wideo", inline=False)
     embed.add_field(name="/pomoc",          value="Wyświetla tę wiadomość", inline=False)
     # Admin-only commands
     if admin:
         embed.add_field(name="\u200b", value="──────────── **Admin** ────────────", inline=False)
+        embed.add_field(name="/akcje <ticker>", value="Sprawdź cenę akcji w USD i EUR ze zmianą 24h + wykres\nNp. `/akcje AAPL`", inline=False)
+        embed.add_field(name="/sprawdz",        value="Ręcznie sprawdź czy jest aktywny stream lub nowe wideo", inline=False)
         embed.add_field(name="/sluchaj",     value="Ogranicz bota do użytkownika lub roli\n`@użytkownik`, `@Rola` lub `wszyscy`", inline=False)
         embed.add_field(name="/kanal",       value="Ustaw kanał bota. `/kanal reset` usuwa ograniczenie", inline=False)
         embed.add_field(name="/avatar",      value="Zmień avatar Aku (podaj URL obrazka)", inline=False)
@@ -332,6 +332,12 @@ async def rps(interaction: discord.Interaction, choice: app_commands.Choice[str]
 async def akcje(interaction: discord.Interaction, ticker: str, wykres: app_commands.Choice[str] = None):
     if not await guard(interaction):
         return
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Ta wiedza jest zarezerwowana dla wybranych. Nie dla ciebie.",
+            ephemeral=True
+        )
+        return
     await interaction.response.defer()
     chart_type = wykres.value if wykres else "line"
     embed, chart_buf = await get_stock_embed_and_chart(ticker.upper(), chart_type)
@@ -351,6 +357,12 @@ async def pomoc(interaction: discord.Interaction):
 @bot.tree.command(name="sprawdz", description="Ręcznie sprawdź czy jest aktywny stream lub nowe wideo")
 async def sprawdz(interaction: discord.Interaction):
     if not await guard(interaction):
+        return
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Nie masz uprawnień by kazać mi sprawdzać cokolwiek.",
+            ephemeral=True
+        )
         return
     await interaction.response.defer(ephemeral=True)
 
@@ -601,7 +613,7 @@ async def get_latest_youtube_video():
     )
     return data.get("items", [None])[0]
 
-@tasks.loop(minutes=10)
+@tasks.loop(time=dtime(hour=16, minute=0, tzinfo=timezone.utc))  # 18:00 CET / 17:00 CEST
 async def check_youtube():
     try:
         video = await get_latest_youtube_video()
