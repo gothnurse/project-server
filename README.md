@@ -1,88 +1,87 @@
 # 🏠 HappyPlace — Home Server
 
-> Personal home server running on Hetzner CAX21 (ARM64). Self-hosted ad blocking, VPN, Minecraft, and more — all managed via Docker Compose.
+> Prywatny serwer domowy na Hetzner CAX21 (ARM64). Blokowanie reklam, VPN, Minecraft, Discord bot i więcej — wszystko zarządzane przez Docker Compose.
 
 ![Status](https://img.shields.io/badge/status-active-brightgreen) ![Host](https://img.shields.io/badge/host-Hetzner%20CAX21-red) ![OS](https://img.shields.io/badge/OS-Ubuntu%2024.04-orange) ![Arch](https://img.shields.io/badge/arch-ARM64-blue)
 
 ---
 
-## 🗺️ Architecture
+## 🗺 Architektura
 
 ```
 Internet
     │
     ▼
-Your VPS or Local Machine
+Hetzner CAX21 (ARM64)
     │
-    ├── 🛡️  Pi-hole        — DNS-level ad & tracker blocking   :8080
-    ├── 🔒  WireGuard      — VPN for remote access & protection :51820 / :51821
-    ├── 🎮  Minecraft      — PaperMC game server               :25565
-    ├── 🤖  Discord Bot    — Custom bot                        (internal)
-    ├── 🐳  Portainer      — Docker management GUI             :9443
-    └── 🖥️  Cockpit        — Server management GUI             :9090
+    ├── 🛡  Pi-hole        — Blokowanie reklam i trackerów na poziomie DNS   :8080
+    ├── 🔒  WireGuard      — VPN do zdalnego dostępu i ochrony               :51820 / :51821
+    ├── 🎮  Minecraft      — Serwer PaperMC                                  :25565
+    ├── 🤖  Discord Bot    — Aku, własny bot discordowy                      (internal)
+    ├── 🐳  Portainer      — GUI do zarządzania Dockerem                     :9443
+    └── 🖥  Cockpit        — GUI do zarządzania serwerem                     :9090
 ```
 
 ---
 
-## 📦 Services
+## 📦 Usługi
 
-| Service | Image | Port | Description |
+| Usługa | Obraz | Port | Opis |
 |---|---|---|---|
-| **Pi-hole** | `pihole/pihole:latest` | `8080` | Network-wide ad blocking |
-| **WireGuard** | `wg-easy:latest` | `51820/udp`, `51821` | VPN server with web UI |
-| **Minecraft** | `itzg/minecraft-server` | `25565` | PaperMC server |
-| **Discord Bot** | custom build | — | Personal Discord bot |
-| **Portainer** | `portainer-ce:latest` | `9443` | Docker management UI |
-| **Cockpit** | system package | `9090` | Server system UI |
+| **Pi-hole** | `pihole/pihole:latest` | `8080` | Blokowanie reklam dla całej sieci |
+| **WireGuard** | `wg-easy:latest` | `51820/udp`, `51821` | Serwer VPN z interfejsem webowym |
+| **Minecraft** | `itzg/minecraft-server` | `25565` | Serwer PaperMC |
+| **Aku (Discord Bot)** | custom build | — | Własny bot discordowy |
+| **Portainer** | `portainer-ce:latest` | `9443` | Wizualne zarządzanie Dockerem |
+| **Cockpit** | system package | `9090` | Zarządzanie systemem serwera |
 
 ---
 
-## 🚀 Setup
+## 🚀 Instalacja
 
-### Prerequisites
+### Wymagania
 - Ubuntu 24.04 LTS
 - Docker + Docker Compose
-- A non-root user with sudo access
+- Użytkownik bez roota z dostępem sudo
 
-### Clone & configure
+### Klonowanie i konfiguracja
 ```bash
 git clone https://github.com/YOUR_USERNAME/home-server.git
 cd home-server
 cp .env.example .env
-# Edit .env and fill in your passwords
-nano .env
+nano .env  # uzupełnij hasła i klucze
 ```
 
-### Start all services
+### Uruchomienie wszystkich usług
 ```bash
 docker compose up -d
 ```
 
-### Check status
+### Sprawdzenie statusu
 ```bash
 docker compose ps
 ```
 
 ---
 
-## ⚙️ Configuration
+## ⚙ Konfiguracja
 
-Copy `.env.example` to `.env` and fill in:
+Skopiuj `.env.example` jako `.env` i uzupełnij:
 
 ```env
-PIHOLE_PASSWORD=your_pihole_password
+PIHOLE_PASSWORD=twoje_haslo
 ```
 
-> ⚠️ Never commit your `.env` file. It's listed in `.gitignore`.
+> ⚠ Nigdy nie commituj pliku `.env`. Jest dodany do `.gitignore`.
 
 ---
 
-## 🌐 Network
+## 🌐 Sieć
 
-All services run on an isolated Docker bridge network `server-network`.
+Wszystkie usługi działają na izolowanej sieci Docker `server-network`.
 
-**Firewall (iptables)** — open ports:
-| Port | Protocol | Service |
+**Firewall (iptables)** — otwarte porty:
+| Port | Protokół | Usługa |
 |---|---|---|
 | 22 | TCP | SSH |
 | 53 | TCP/UDP | Pi-hole DNS |
@@ -96,16 +95,16 @@ All services run on an isolated Docker bridge network `server-network`.
 
 ---
 
-## 🛡️ Pi-hole
+## 🛡 Pi-hole
 
-Network-wide DNS ad blocking with 133,000+ blocked domains.
+Blokowanie reklam przez DNS dla całej sieci domowej — ponad 133 000 zablokowanych domen.
 
-**Blocklists used:**
+**Używane listy blokad:**
 - StevenBlack Unified Hosts
 - AdAway
-- Default Pi-hole lists
+- Domyślne listy Pi-hole
 
-**Access dashboard:**
+**Panel administracyjny:**
 ```
 http://YOUR_SERVER_IP:8080/admin
 ```
@@ -114,67 +113,91 @@ http://YOUR_SERVER_IP:8080/admin
 
 ## 🔒 WireGuard
 
-Self-hosted VPN using [wg-easy](https://github.com/wg-easy/wg-easy) for easy client management.
+Własny VPN oparty na [wg-easy](https://github.com/wg-easy/wg-easy).
 
-- Connect from anywhere and have all traffic routed through your server
-- DNS automatically set to Pi-hole — ad blocking works on the go too
-- Manage clients via web UI at `:51821`
+- Połącz się z dowolnego miejsca — cały ruch przechodzi przez serwer
+- DNS automatycznie ustawiony na Pi-hole — blokowanie reklam działa też poza domem
+- Zarządzanie klientami przez panel webowy pod `:51821`
 
 ---
 
 ## 🎮 Minecraft
 
-PaperMC server via [itzg/minecraft-server](https://github.com/itzg/minecraft-server).
+Serwer PaperMC przez [itzg/minecraft-server](https://github.com/itzg/minecraft-server).
 
 ```bash
-# Access server console
+# Dostęp do konsoli serwera
 docker exec -it minecraft rcon-cli
 ```
 
 ---
 
-## 🖥️ Management
+## 🤖 Aku — Discord Bot
 
-**Portainer** — `https://YOUR_SERVER_IP:9443`
-Visual Docker management. Start/stop containers, view logs, manage volumes.
+Własny bot discordowy inspirowany postacią Aku z serialu Samurai Jack.
 
-**Cockpit** — `http://YOUR_SERVER_IP:9090`
-Full server overview — CPU, memory, disk, logs, and a browser-based terminal.
+**Funkcje:**
+- 🪨 `/rps` — Kamień, papier, nożyczki
+- 📈 `/akcje <ticker>` — Cena akcji w USD/EUR z wykresem 24h (linia, świece, słupki)
+- 🔍 `/sprawdz` — Ręczne sprawdzenie YouTube i Twitch
+- 🎥 Automatyczne powiadomienia o nowych filmach (co 10 min)
+- 🔴 Automatyczne powiadomienia o streamach (co 2 min)
+- 👂 `/sluchaj` — Ogranicz bota do użytkownika lub roli
+- 📢 `/kanal` — Ustaw kanał działania bota
+- 🔔 `/kanalnotyfikacji` — Ustaw kanał powiadomień
+- 😴 `/wylacz` / `/wlacz` — Włącz/wyłącz bota (tylko właściciel)
+
+Szczegółowa dokumentacja w `discord-bot/README.md`.
 
 ---
 
-## 📁 Project Structure
+## 🖥 Zarządzanie
+
+**Portainer** — `https://YOUR_SERVER_IP:9443`
+Wizualne zarządzanie Dockerem. Uruchamianie/zatrzymywanie kontenerów, logi, wolumeny.
+
+**Cockpit** — `http://YOUR_SERVER_IP:9090`
+Pełny przegląd serwera — CPU, pamięć, dysk, logi i terminal w przeglądarce.
+
+---
+
+## 📁 Struktura projektu
 
 ```
 server/
 ├── docker-compose.yml
-├── .env                  # secrets (not committed)
+├── .env                  # sekrety (nie commitować!)
 ├── .env.example
 ├── .gitignore
-├── pihole/               # Pi-hole config (not committed)
-├── wireguard/            # WireGuard config (not committed)
-├── minecraft/            # Minecraft data (not committed)
+├── README.md
+├── pihole/               # konfiguracja Pi-hole (nie commitować)
+├── wireguard/            # konfiguracja WireGuard (nie commitować)
+├── minecraft/            # dane Minecraft (nie commitować)
 ├── discord-bot/
-│   └── Dockerfile
-└── caddy/                # Reverse proxy (future)
+│   ├── bot.py
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── .env.example
+│   └── README.md
+└── caddy/                # reverse proxy (w planach)
 ```
 
 ---
 
-## 🗒️ Roadmap
+## 🗒 Roadmap
 
-- [x] Pi-hole DNS ad blocking
+- [x] Pi-hole — blokowanie reklam przez DNS
 - [x] WireGuard VPN
-- [x] Minecraft server
-- [x] Portainer + Cockpit management UIs
-- [ ] Discord bot
-- [ ] Personal website
+- [x] Serwer Minecraft
+- [x] Portainer + Cockpit
+- [x] Discord bot (Aku)
+- [ ] Własna strona internetowa
 - [ ] Caddy reverse proxy + SSL
-- [ ] Custom domain
-- [ ] Automated backups
+- [ ] Własna domena
+- [ ] Automatyczne kopie zapasowe
 
 ---
 
-## 📄 License
+## 📄 Licencja
 
-Personal project — not intended for production use. Feel free to use as inspiration. 🙂
+Projekt prywatny — nie przeznaczony do użytku produkcyjnego. Możesz używać jako inspirację. 🙂
