@@ -24,6 +24,12 @@ TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 GENERAL_CHANNEL_ID   = int(os.getenv("GENERAL_CHANNEL_ID"))
 YOUTUBE_HANDLE       = os.getenv("YOUTUBE_CHANNEL_HANDLE")
 TWITCH_CHANNEL       = os.getenv("TWITCH_CHANNEL")
+TWITCH_USER_TOKEN    = os.getenv("TWITCH_USER_TOKEN")
+TWITCH_REFRESH_TOKEN = os.getenv("TWITCH_REFRESH_TOKEN")
+YT_CLIENT_ID         = os.getenv("YOUTUBE_CLIENT_ID")
+YT_CLIENT_SECRET     = os.getenv("YOUTUBE_CLIENT_SECRET")
+YT_ACCESS_TOKEN      = os.getenv("YOUTUBE_ACCESS_TOKEN")
+YT_REFRESH_TOKEN     = os.getenv("YOUTUBE_REFRESH_TOKEN")
 
 # ─── Owner ───────────────────────────────────────────────────────────────────
 OWNER_ID = 213687728347283456
@@ -47,6 +53,8 @@ class Aku(discord.Client):
         self.allowed_channel_id    = None
         self.enabled               = True  # master on/off switch
         self.notification_channel_id = GENERAL_CHANNEL_ID  # can be overridden by /kanalpowoiadomien
+        self.twitch_user_token       = TWITCH_USER_TOKEN
+        self.yt_access_token         = YT_ACCESS_TOKEN
 
     async def setup_hook(self):
         await self.tree.sync()
@@ -582,6 +590,204 @@ async def wlacz(interaction: discord.Interaction):
         ephemeral=True
     )
     print("✅ Bot włączony przez właściciela")
+
+
+# ─── Stream Management ────────────────────────────────────────────────────────
+
+async def refresh_twitch_user_token():
+    """Refresh Twitch user OAuth token."""
+    data = await post_json(
+        "https://id.twitch.tv/oauth2/token",
+        params={
+            "client_id":     TWITCH_CLIENT_ID,
+            "client_secret": TWITCH_CLIENT_SECRET,
+            "refresh_token": TWITCH_REFRESH_TOKEN,
+            "grant_type":    "refresh_token"
+        }
+    )
+    if "access_token" in data:
+        bot.twitch_user_token = data["access_token"]
+        print("✅ Twitch user token odświeżony")
+        return True
+    print(f"❌ Błąd odświeżania Twitch token: {data}")
+    return False
+
+async def refresh_youtube_token():
+    """Refresh YouTube OAuth token."""
+    data = await post_json(
+        "https://oauth2.googleapis.com/token",
+        params={
+            "client_id":     YT_CLIENT_ID,
+            "client_secret": YT_CLIENT_SECRET,
+            "refresh_token": YT_REFRESH_TOKEN,
+            "grant_type":    "refresh_token"
+        }
+    )
+    if "access_token" in data:
+        bot.yt_access_token = data["access_token"]
+        print("✅ YouTube token odświeżony")
+        return True
+    print(f"❌ Błąd odświeżania YouTube token: {data}")
+    return False
+
+async def get_twitch_user_id() -> str | None:
+    """Get Twitch user ID for the channel."""
+    data = await fetch_json(
+        "https://api.twitch.tv/helix/users",
+        params  = {"login": TWITCH_CHANNEL},
+        headers = {
+            "Client-ID":     TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {bot.twitch_user_token}"
+        }
+    )
+    return data.get("data", [{}])[0].get("id")
+
+async def get_twitch_game_id(game_name: str) -> str | None:
+    """Get Twitch game/category ID by name."""
+    data = await fetch_json(
+        "https://api.twitch.tv/helix/games",
+        params  = {"name": game_name},
+        headers = {
+            "Client-ID":     TWITCH_CLIENT_ID,
+            "Authorization": f"Bearer {bot.twitch_user_token}"
+        }
+    )
+    return data.get("data", [{}])[0].get("id")
+
+async def get_youtube_broadcast_id() -> str | None:
+    """Get active or upcoming YouTube broadcast ID."""
+    data = await fetch_json(
+        "https://www.googleapis.com/youtube/v3/liveBroadcasts",
+        params  = {"part": "id,snippet", "broadcastStatus": "active", "broadcastType": "all"},
+        headers = {"Authorization": f"Bearer {bot.yt_access_token}"}
+    )
+    items = data.get("items", [])
+    if items:
+        return items[0]["id"]
+    # Try upcoming if no active
+    data2 = await fetch_json(
+        "https://www.googleapis.com/youtube/v3/liveBroadcasts",
+        params  = {"part": "id,snippet", "broadcastStatus": "upcoming", "broadcastType": "all"},
+        headers = {"Authorization": f"Bearer {bot.yt_access_token}"}
+    )
+    items2 = data2.get("items", [])
+    return items2[0]["id"] if items2 else None
+
+async def set_twitch_stream(title: str, game_name: str) -> tuple[bool, str]:
+    """Update Twitch stream title and category. Returns (success, message)."""
+    try:
+        # Get user ID
+        user_id = await get_twitch_user_id()
+        if not user_id:
+            # Try refreshing token
+            await refresh_twitch_user_token()
+            user_id = await get_twitch_user_id()
+        if not user_id:
+            return False, "Nie udało się pobrać ID kanału Twitch."
+
+        # Get game ID
+        game_id = await get_twitch_game_id(game_name)
+        if not game_id:
+            return False, f"Nie znaleziono kategorii **{game_name}** na Twitchu. Sprawdź czy nazwa jest dokładna."
+
+        # Update channel info
+        async with aiohttp.ClientSession() as session:
+            async with session.patch(
+                f"https://api.twitch.tv/helix/channels?broadcaster_id={user_id}",
+                json    = {"title": title, "game_id": game_id},
+                headers = {
+                    "Client-ID":     TWITCH_CLIENT_ID,
+                    "Authorization": f"Bearer {bot.twitch_user_token}",
+                    "Content-Type":  "application/json"
+                }
+            ) as resp:
+                if resp.status == 204:
+                    return True, f"Twitch ✅"
+                elif resp.status == 401:
+                    await refresh_twitch_user_token()
+                    return False, "Token Twitch wygasł — odświeżono, spróbuj ponownie."
+                else:
+                    text = await resp.text()
+                    return False, f"Twitch błąd {resp.status}: {text}"
+    except Exception as e:
+        return False, f"Twitch wyjątek: {e}"
+
+async def set_youtube_stream(title: str, game_name: str) -> tuple[bool, str]:
+    """Update YouTube live broadcast title and description. Returns (success, message)."""
+    try:
+        broadcast_id = await get_youtube_broadcast_id()
+        if not broadcast_id:
+            await refresh_youtube_token()
+            broadcast_id = await get_youtube_broadcast_id()
+        if not broadcast_id:
+            return False, "Nie znaleziono aktywnej ani nadchodzącej transmisji na YouTube."
+
+        async with aiohttp.ClientSession() as session:
+            async with session.put(
+                "https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet",
+                json    = {
+                    "id": broadcast_id,
+                    "snippet": {
+                        "title":              title,
+                        "scheduledStartTime": datetime.now(timezone.utc).isoformat(),
+                        "description":        f"Gram w: {game_name}"
+                    }
+                },
+                headers = {
+                    "Authorization": f"Bearer {bot.yt_access_token}",
+                    "Content-Type":  "application/json"
+                }
+            ) as resp:
+                if resp.status == 200:
+                    return True, "YouTube ✅"
+                elif resp.status == 401:
+                    await refresh_youtube_token()
+                    return False, "Token YouTube wygasł — odświeżono, spróbuj ponownie."
+                else:
+                    text = await resp.text()
+                    return False, f"YouTube błąd {resp.status}: {text}"
+    except Exception as e:
+        return False, f"YouTube wyjątek: {e}"
+
+@bot.tree.command(name="ustawstream", description="[Admin] Ustaw tytuł i kategorię transmisji na Twitchu i/lub YouTube")
+@app_commands.describe(
+    tytul="Tytuł transmisji",
+    kategoria="Nazwa gry lub kategorii (np. Minecraft, Just Chatting)",
+    platforma="Na której platformie ustawić"
+)
+@app_commands.choices(platforma=[
+    app_commands.Choice(name="🟣 Twitch + 🔴 YouTube", value="both"),
+    app_commands.Choice(name="🟣 Tylko Twitch",        value="twitch"),
+    app_commands.Choice(name="🔴 Tylko YouTube",       value="youtube"),
+])
+async def ustawstream(interaction: discord.Interaction, tytul: str, kategoria: str, platforma: app_commands.Choice[str] = None):
+    if not is_admin(interaction):
+        await interaction.response.send_message(
+            "Nie masz wystarczającej władzy, by mi wydawać rozkazy.",
+            ephemeral=True
+        )
+        return
+    await interaction.response.defer(ephemeral=True)
+
+    platform = platforma.value if platforma else "both"
+    results  = []
+
+    if platform in ("both", "twitch"):
+        ok, msg = await set_twitch_stream(tytul, kategoria)
+        results.append(msg)
+
+    if platform in ("both", "youtube"):
+        ok, msg = await set_youtube_stream(tytul, kategoria)
+        results.append(msg)
+
+    summary = "\n".join(results)
+    embed = discord.Embed(
+        title       = "📡 Aktualizacja transmisji",
+        description = f"**Tytuł:** {tytul}\n**Kategoria:** {kategoria}\n\n{summary}",
+        color       = 0x9146FF
+    )
+    embed.set_footer(text="Aku zaktualizował transmisję")
+    await interaction.followup.send(embeds=[embed], ephemeral=True)
 
 # ─── YouTube ──────────────────────────────────────────────────────────────────
 async def resolve_youtube_channel_id():
