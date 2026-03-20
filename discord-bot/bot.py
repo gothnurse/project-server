@@ -23,6 +23,7 @@ TWITCH_CLIENT_ID     = os.getenv("TWITCH_CLIENT_ID")
 TWITCH_CLIENT_SECRET = os.getenv("TWITCH_CLIENT_SECRET")
 GENERAL_CHANNEL_ID   = int(os.getenv("GENERAL_CHANNEL_ID"))
 YOUTUBE_HANDLE       = os.getenv("YOUTUBE_CHANNEL_HANDLE")
+YOUTUBE_CHANNEL_ID   = os.getenv("YOUTUBE_CHANNEL_ID")
 TWITCH_CHANNEL       = os.getenv("TWITCH_CHANNEL")
 TWITCH_USER_TOKEN    = os.getenv("TWITCH_USER_TOKEN")
 TWITCH_REFRESH_TOKEN = os.getenv("TWITCH_REFRESH_TOKEN")
@@ -52,7 +53,7 @@ class Aku(discord.Client):
         self.listen_role_id        = None
         self.allowed_channel_id    = None
         self.enabled               = True  # master on/off switch
-        self.notification_channel_id = GENERAL_CHANNEL_ID  # can be overridden by /kanalpowoiadomien
+        self.notification_channel_id = GENERAL_CHANNEL_ID  # can be overridden by /kanalnotyfikacji
         self.twitch_user_token       = TWITCH_USER_TOKEN
         self.yt_access_token         = YT_ACCESS_TOKEN
 
@@ -308,6 +309,8 @@ def get_help_embed(admin: bool) -> discord.Embed:
         embed.add_field(name="/avatar",      value="Zmień avatar Aku (podaj URL obrazka)", inline=False)
         embed.add_field(name="/ustawstatus", value="Zmień status Aku", inline=False)
         embed.add_field(name="/status",      value="Pokaż aktualne ustawienia bota", inline=False)
+        embed.add_field(name="/kanalnotyfikacji", value="Ustaw kanał powiadomień YT/Twitch", inline=False)
+        embed.add_field(name="/ustawstream",  value="Ustaw tytuł i kategorię transmisji na Twitchu/YouTube\nNp. `/ustawstream tytuł:Gramy! kategoria:Minecraft`", inline=False)
         embed.add_field(name="\u200b", value="──────────── **Właściciel** ────────────", inline=False)
         embed.add_field(name="/wylacz",      value="Natychmiast wyłącz bota", inline=False)
         embed.add_field(name="/wlacz",       value="Włącz bota z powrotem", inline=False)
@@ -346,14 +349,14 @@ async def akcje(interaction: discord.Interaction, ticker: str, wykres: app_comma
             ephemeral=True
         )
         return
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     chart_type = wykres.value if wykres else "line"
     embed, chart_buf = await get_stock_embed_and_chart(ticker.upper(), chart_type)
     if chart_buf:
         file = discord.File(chart_buf, filename="wykres.png")
-        await interaction.followup.send(embeds=[embed], files=[file])
+        await interaction.followup.send(embeds=[embed], files=[file], ephemeral=True)
     else:
-        await interaction.followup.send(embeds=[embed])
+        await interaction.followup.send(embeds=[embed], ephemeral=True)
 
 @bot.tree.command(name="pomoc", description="Lista wszystkich dostępnych poleceń")
 async def pomoc(interaction: discord.Interaction):
@@ -728,9 +731,8 @@ async def set_youtube_stream(title: str, game_name: str) -> tuple[bool, str]:
                 json    = {
                     "id": broadcast_id,
                     "snippet": {
-                        "title":              title,
-                        "scheduledStartTime": datetime.now(timezone.utc).isoformat(),
-                        "description":        f"Gram w: {game_name}"
+                        "title":       title,
+                        "description": f"Gram w: {game_name}"
                     }
                 },
                 headers = {
@@ -907,7 +909,12 @@ async def check_twitch():
 @bot.event
 async def on_ready():
     print(f"✅ Aku przebudził się jako {bot.user} (ID: {bot.user.id})")
-    await resolve_youtube_channel_id()
+    # Use hardcoded channel ID from .env — saves API quota
+    if YOUTUBE_CHANNEL_ID:
+        bot.youtube_channel_id = YOUTUBE_CHANNEL_ID
+        print(f"✅ YouTube channel ID załadowany z .env: {YOUTUBE_CHANNEL_ID}")
+    else:
+        await resolve_youtube_channel_id()
     await get_twitch_token()
     video = await get_latest_youtube_video()
     if video:
