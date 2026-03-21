@@ -716,7 +716,7 @@ async def set_twitch_stream(title: str, game_name: str) -> tuple[bool, str]:
         return False, f"Twitch wyjątek: {e}"
 
 async def set_youtube_stream(title: str, game_name: str) -> tuple[bool, str]:
-    """Update YouTube live broadcast title and description. Returns (success, message)."""
+    """Update YouTube live broadcast title, category and game. Returns (success, message)."""
     try:
         broadcast_id = await get_youtube_broadcast_id()
         if not broadcast_id:
@@ -725,29 +725,47 @@ async def set_youtube_stream(title: str, game_name: str) -> tuple[bool, str]:
         if not broadcast_id:
             return False, "Nie znaleziono aktywnej ani nadchodzącej transmisji na YouTube."
 
+        headers = {
+            "Authorization": f"Bearer {bot.yt_access_token}",
+            "Content-Type":  "application/json"
+        }
+
         async with aiohttp.ClientSession() as session:
+            # Step 1: Update title and category via liveBroadcasts
             async with session.put(
                 "https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet",
-                json    = {
+                json = {
                     "id": broadcast_id,
                     "snippet": {
                         "title":       title,
-                        "description": f"Gram w: {game_name}"
+                        "description": f"Gram w: {game_name}",
+                        "categoryId":  "20"  # Gaming
                     }
                 },
-                headers = {
-                    "Authorization": f"Bearer {bot.yt_access_token}",
-                    "Content-Type":  "application/json"
-                }
-            ) as resp:
-                if resp.status == 200:
-                    return True, "YouTube ✅"
-                elif resp.status == 401:
+                headers = headers
+            ) as resp1:
+                if resp1.status == 401:
                     await refresh_youtube_token()
                     return False, "Token YouTube wygasł — odświeżono, spróbuj ponownie."
-                else:
-                    text = await resp.text()
-                    return False, f"YouTube błąd {resp.status}: {text}"
+                elif resp1.status not in (200, 204):
+                    text = await resp1.text()
+                    return False, f"YouTube błąd {resp1.status}: {text}"
+
+            # Step 2: Update game title via videos endpoint
+            async with session.put(
+                "https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails",
+                json = {
+                    "id": broadcast_id,
+                    "liveStreamingDetails": {
+                        "gameTitle": game_name
+                    }
+                },
+                headers = headers
+            ) as resp2:
+                if resp2.status not in (200, 204):
+                    return True, "YouTube ✅ (tytuł i kategoria OK, nazwa gry mogła nie zostać zapisana)"
+
+        return True, "YouTube ✅"
     except Exception as e:
         return False, f"YouTube wyjątek: {e}"
 
